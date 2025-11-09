@@ -138,7 +138,7 @@ impl DecorationParts {
         if self.config == config {
             return;
         }
-        self.config = config;
+        self.config = config.clone();
 
         let layout = PartLayout::calc(config);
         for (part, layout) in self.parts.iter_mut().zip(layout) {
@@ -170,13 +170,27 @@ impl DecorationParts {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy, Eq, PartialEq)]
+use crate::TitlebarVisibility;
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct LayoutConfig {
     pub width: u32,
     pub height: u32,
-    pub hide_titlebar: bool,
+    pub titlebar: TitlebarVisibility,
     pub hide_border: bool,
     pub hide_edges: bool,
+}
+
+impl Default for LayoutConfig {
+    fn default() -> Self {
+        Self {
+            width: 0,
+            height: 0,
+            titlebar: TitlebarVisibility::Visible,
+            hide_border: false,
+            hide_edges: false,
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -194,13 +208,14 @@ impl PartLayout {
         let LayoutConfig {
             width,
             height,
-            hide_titlebar,
+            titlebar,
             hide_border,
             hide_edges,
         } = config;
 
         let mut parts = [Self::default(); 5];
 
+        let hide_titlebar = titlebar == TitlebarVisibility::Hidden;
         let header_height = theme::header_height(hide_titlebar);
         let height_with_header = height + header_height;
 
@@ -261,9 +276,15 @@ impl PartLayout {
             height: RESIZE_HANDLE_SIZE,
         });
 
+        let header_y = if titlebar == TitlebarVisibility::Visible {
+            -(header_height as i32)
+        } else {
+            0
+        };
+
         parts[PartId::HEADER].surface_rect = Rect {
             x: 0,
-            y: -(header_height as i32),
+            y: header_y,
             width,
             height: header_height,
         };
@@ -387,7 +408,7 @@ mod tests {
             None,
         );
 
-        let layout = PartLayout::calc(layout_config);
+        let layout = PartLayout::calc(layout_config.clone());
 
         for (part_idx, PartLayout { surface_rect, .. }) in layout.iter().enumerate() {
             let color = match part_idx {
@@ -395,7 +416,11 @@ mod tests {
                 PartId::LEFT => Color::from_rgba8(255, 0, 0, 255),
                 PartId::RIGHT => Color::from_rgba8(255, 0, 0, 255),
                 PartId::BOTTOM => Color::from_rgba8(0, 0, 255, 255),
-                PartId::HEADER if layout_config.hide_titlebar => continue,
+                PartId::HEADER
+                    if layout_config.titlebar == TitlebarVisibility::Hidden =>
+                {
+                    continue
+                }
                 PartId::HEADER => Color::from_rgba8(255, 255, 0, 255),
                 _ => unreachable!(),
             };
@@ -425,7 +450,7 @@ mod tests {
         let pixmap = draw_layout(LayoutConfig {
             width: 200,
             height: 200,
-            hide_titlebar: false,
+            titlebar: TitlebarVisibility::Visible,
             hide_border: false,
             hide_edges: false,
         });
@@ -438,7 +463,7 @@ mod tests {
         let pixmap = draw_layout(LayoutConfig {
             width: 200,
             height: 200,
-            hide_titlebar: true,
+            titlebar: TitlebarVisibility::Hidden,
             hide_border: false,
             hide_edges: false,
         });
@@ -451,7 +476,7 @@ mod tests {
         let pixmap = draw_layout(LayoutConfig {
             width: 200,
             height: 200,
-            hide_titlebar: false,
+            titlebar: TitlebarVisibility::Visible,
             hide_border: true,
             hide_edges: false,
         });
@@ -464,7 +489,7 @@ mod tests {
         let pixmap = draw_layout(LayoutConfig {
             width: 200,
             height: 200,
-            hide_titlebar: true,
+            titlebar: TitlebarVisibility::Hidden,
             hide_border: true,
             hide_edges: false,
         });

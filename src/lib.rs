@@ -236,7 +236,7 @@ where
         LayoutConfig {
             width: self.width.get(),
             height: self.height.get(),
-            hide_titlebar: self.titlebar == TitlebarVisibility::Hidden,
+            titlebar: self.titlebar.clone(),
             hide_border: self.hide_border,
             hide_edges: self.state.contains(WindowState::MAXIMIZED),
         }
@@ -258,7 +258,7 @@ where
             decorations.show();
         }
 
-        if layout_config.hide_titlebar {
+        if layout_config.titlebar == TitlebarVisibility::Hidden {
             decorations.hide_titlebar();
         }
         if layout_config.hide_edges {
@@ -562,7 +562,7 @@ where
 }
 
 /// The configuration for the [`AdwaitaFrame`] frame.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TitlebarVisibility {
     Visible,
     Hidden,
@@ -992,7 +992,7 @@ mod tests {
         LayoutConfig {
             width: 200,
             height: 200,
-            hide_titlebar: false,
+            titlebar: TitlebarVisibility::Visible,
             hide_border: false,
             hide_edges: false,
         }
@@ -1007,7 +1007,7 @@ mod tests {
         part_id: PartId,
         scale: u32,
     ) -> Pixmap {
-        let layout = PartLayout::calc(layout_config);
+        let layout = PartLayout::calc(layout_config.clone());
 
         let mut rect = layout[part_id as usize].surface_rect;
         // TODO: Scaling should't be done in the test
@@ -1034,7 +1034,7 @@ mod tests {
             &buttons,
             Location::None,
             layout_config.hide_border,
-            &TitlebarVisibility::from(layout_config.hide_titlebar),
+            &layout_config.titlebar,
             &mut shadow,
         );
 
@@ -1086,7 +1086,7 @@ mod tests {
     }
 
     fn draw_combined_with_scale(layout_config: LayoutConfig, scale: u32) -> Pixmap {
-        let layout = PartLayout::calc(layout_config);
+        let layout = PartLayout::calc(layout_config.clone());
 
         let mut pixmap = Pixmap::new(400 * scale, 400 * scale).unwrap();
         pixmap.fill(Color::WHITE);
@@ -1105,7 +1105,7 @@ mod tests {
         );
 
         let mut draw_pixmap = |part_id: PartId| {
-            let part = draw_test_part_with_scale(layout_config, part_id, scale);
+            let part = draw_test_part_with_scale(layout_config.clone(), part_id, scale);
             let mut rect = layout[part_id as usize].surface_rect;
             rect.width *= scale;
             rect.height *= scale;
@@ -1122,7 +1122,8 @@ mod tests {
         };
 
         for id in 0..PartId::COUNT {
-            if layout_config.hide_titlebar && id == PartId::Header as usize {
+            if layout_config.titlebar == TitlebarVisibility::Hidden && id == PartId::Header as usize
+            {
                 continue;
             }
             draw_pixmap(PartId::from_usize(id));
@@ -1141,7 +1142,7 @@ mod tests {
     #[test]
     fn combined_parts_no_titlebar() {
         let mut layout_config = test_layout_config();
-        layout_config.hide_titlebar = true;
+        layout_config.titlebar = TitlebarVisibility::Hidden;
         let got = draw_combined(layout_config).encode_png().unwrap();
         png_check("combined-parts-no-titlebar", &got);
     }
@@ -1157,7 +1158,7 @@ mod tests {
     #[test]
     fn combined_parts_no_titlebar_and_border() {
         let mut layout_config = test_layout_config();
-        layout_config.hide_titlebar = true;
+        layout_config.titlebar = TitlebarVisibility::Hidden;
         layout_config.hide_border = true;
         let got = draw_combined(layout_config).encode_png().unwrap();
         png_check("combined-parts-no-titlebar-and-border", &got);
