@@ -743,7 +743,7 @@ fn draw_headerbar(
     hider_border: bool,
     titlebar: &TitlebarVisibility,
 ) {
-    let _ = draw_headerbar_bg(pixmap, scale, colors, state, titlebar);
+    let _ = draw_headerbar_bg(pixmap, scale, colors, state, titlebar, mouse);
 
     // Horizontal margin.
     let margin_h = get_margin_h_lp(state, hider_border) * 2.0;
@@ -837,6 +837,7 @@ fn draw_headerbar_bg(
     colors: &ColorMap,
     state: &WindowState,
     titlebar: &TitlebarVisibility,
+    mouse: Location,
 ) -> SkiaResult {
     let w = pixmap.width() as f32;
     let h = pixmap.height() as f32;
@@ -850,7 +851,13 @@ fn draw_headerbar_bg(
     let bg = rounded_headerbar_shape(0., 0., w, h, radius)?;
 
     let alpha = match titlebar {
-        TitlebarVisibility::Transparent(alpha) => *alpha,
+        TitlebarVisibility::Transparent(alpha) => {
+            if matches!(mouse, Location::Head | Location::Button(_)) {
+                255
+            } else {
+                *alpha
+            }
+        }
         TitlebarVisibility::Visible => 255,
         TitlebarVisibility::Hidden => 0,
     };
