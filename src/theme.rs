@@ -8,11 +8,11 @@ pub(crate) const RESIZE_HANDLE_CORNER_SIZE: u32 = 24;
 pub(crate) const HEADER_SIZE: u32 = 35;
 pub(crate) const CORNER_RADIUS: u32 = 10;
 
-pub(crate) fn header_height(hide_header: bool) -> u32 {
-    if hide_header {
-        0
-    } else {
-        HEADER_SIZE
+pub(crate) fn header_offset_and_height(titlebar: &crate::TitlebarVisibility) -> (u32, u32) {
+    match titlebar {
+        crate::TitlebarVisibility::Hidden => (0, 0),
+        crate::TitlebarVisibility::Transparent(_) => (0, HEADER_SIZE),
+        crate::TitlebarVisibility::Visible => (HEADER_SIZE, HEADER_SIZE),
     }
 }
 

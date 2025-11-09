@@ -215,9 +215,8 @@ impl PartLayout {
 
         let mut parts = [Self::default(); 5];
 
-        let hide_titlebar = titlebar == TitlebarVisibility::Hidden;
-        let header_height = theme::header_height(hide_titlebar);
-        let height_with_header = height + header_height;
+        let (header_offset, header_height) = theme::header_offset_and_height(&titlebar);
+        let height_with_header = height + header_offset;
 
         let edge_size = theme::edge_size(hide_border);
 
@@ -226,7 +225,7 @@ impl PartLayout {
 
         parts[PartId::TOP].surface_rect = Rect {
             x: -(edge_size as i32),
-            y: -(header_height as i32 + edge_size as i32),
+            y: -(header_offset as i32 + edge_size as i32),
             width: width_with_edge,
             height: edge_size,
         };
@@ -239,7 +238,7 @@ impl PartLayout {
 
         parts[PartId::LEFT].surface_rect = Rect {
             x: -(edge_size as i32),
-            y: -(header_height as i32),
+            y: -(header_offset as i32),
             width: edge_size,
             height: height_with_header,
         };
@@ -252,7 +251,7 @@ impl PartLayout {
 
         parts[PartId::RIGHT].surface_rect = Rect {
             x: width as i32,
-            y: -(header_height as i32),
+            y: -(header_offset as i32),
             width: edge_size,
             height: height_with_header,
         };
@@ -276,15 +275,9 @@ impl PartLayout {
             height: RESIZE_HANDLE_SIZE,
         });
 
-        let header_y = if titlebar == TitlebarVisibility::Visible {
-            -(header_height as i32)
-        } else {
-            0
-        };
-
         parts[PartId::HEADER].surface_rect = Rect {
             x: 0,
-            y: header_y,
+            y: -(header_offset as i32),
             width,
             height: header_height,
         };
@@ -416,11 +409,7 @@ mod tests {
                 PartId::LEFT => Color::from_rgba8(255, 0, 0, 255),
                 PartId::RIGHT => Color::from_rgba8(255, 0, 0, 255),
                 PartId::BOTTOM => Color::from_rgba8(0, 0, 255, 255),
-                PartId::HEADER
-                    if layout_config.titlebar == TitlebarVisibility::Hidden =>
-                {
-                    continue
-                }
+                PartId::HEADER if layout_config.titlebar == TitlebarVisibility::Hidden => continue,
                 PartId::HEADER => Color::from_rgba8(255, 255, 0, 255),
                 _ => unreachable!(),
             };

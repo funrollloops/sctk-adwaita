@@ -488,9 +488,11 @@ impl PointerHandler for SimpleWindow {
                                     }
                                     2 => {
                                         // Transparent
+                                        let (width, height) = (self.width, self.height);
                                         frame.set_config(config.titlebar(
                                             sctk_adwaita::TitlebarVisibility::Transparent(127),
                                         ));
+                                        frame.resize(width, height);
                                         self.window.xdg_surface().set_window_geometry(
                                             0,
                                             0,
