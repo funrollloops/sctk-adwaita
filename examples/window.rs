@@ -255,7 +255,7 @@ impl WindowHandler for SimpleWindow {
                     self.compositor_state.clone(),
                     self.subcompositor_state.clone(),
                     qh.clone(),
-                    FrameConfig::auto().hide_titlebar(self.hide_titlebar),
+                    FrameConfig::auto().titlebar(self.hide_titlebar.into()),
                 )
                 .expect("failed to create client side decorations frame.");
                 frame.set_title(self.title.clone());
@@ -457,7 +457,9 @@ impl PointerHandler for SimpleWindow {
                                 let config = FrameConfig::auto().hide_border(self.hide_border);
 
                                 if self.hide_titlebar {
-                                    frame.set_config(config.hide_titlebar(true));
+                                    frame.set_config(
+                                        config.titlebar(sctk_adwaita::TitlebarVisibility::Hidden),
+                                    );
                                     self.window.xdg_surface().set_window_geometry(
                                         0,
                                         0,
@@ -467,7 +469,9 @@ impl PointerHandler for SimpleWindow {
                                 } else {
                                     let (width, height) = (self.width, self.height);
 
-                                    frame.set_config(config.hide_titlebar(false));
+                                    frame.set_config(
+                                        config.titlebar(sctk_adwaita::TitlebarVisibility::Visible),
+                                    );
                                     frame.resize(width, height);
 
                                     let (x, y) = frame.location();
@@ -487,7 +491,8 @@ impl PointerHandler for SimpleWindow {
                         } else if button == 0x112 {
                             if let Some(frame) = self.window_frame.as_mut() {
                                 // FrameConfig::auto() is not free, this shouldn't be called here
-                                let config = FrameConfig::auto().hide_titlebar(self.hide_titlebar);
+                                let config =
+                                    FrameConfig::auto().titlebar(self.hide_titlebar.into());
 
                                 self.hide_border = !self.hide_border;
                                 frame.set_config(config.hide_border(self.hide_border));

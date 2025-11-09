@@ -100,8 +100,8 @@ pub struct AdwaitaFrame<State> {
     title_text: Option<TitleText>,
     shadow: Shadow,
 
-    /// Draw decorations but without the titlebar
-    hide_titlebar: bool,
+    /// Titlebar visibility.
+    titlebar: TitlebarVisibility,
     hide_border: bool,
 
     width: NonZeroU32,
@@ -151,7 +151,7 @@ where
             wm_capabilities: WindowManagerCapabilities::all(),
             resizable: true,
             shadow: Shadow::default(),
-            hide_titlebar: frame_config.hide_titlebar,
+            titlebar: frame_config.titlebar,
             hide_border: frame_config.hide_border,
             width: NonZeroU32::MIN,
             height: NonZeroU32::MIN,
@@ -163,8 +163,8 @@ where
         self.theme = config.theme;
         self.dirty = true;
 
-        if self.hide_titlebar != config.hide_titlebar || self.hide_border != config.hide_border {
-            self.hide_titlebar = config.hide_titlebar;
+        if self.titlebar != config.titlebar || self.hide_border != config.hide_border {
+            self.titlebar = config.titlebar;
             self.hide_border = config.hide_border;
 
             let layout_config = self.layout_config();
@@ -236,7 +236,7 @@ where
         LayoutConfig {
             width: self.width.get(),
             height: self.height.get(),
-            hide_titlebar: self.hide_titlebar,
+            hide_titlebar: self.titlebar == TitlebarVisibility::Hidden,
             hide_border: self.hide_border,
             hide_edges: self.state.contains(WindowState::MAXIMIZED),
         }
@@ -314,7 +314,7 @@ where
                 &self.buttons,
                 self.mouse.location,
                 self.hide_border,
-                self.hide_titlebar,
+                &self.titlebar,
                 &mut self.shadow,
             );
 
@@ -445,9 +445,10 @@ where
         width: NonZeroU32,
         height: NonZeroU32,
     ) -> (Option<NonZeroU32>, Option<NonZeroU32>) {
+        let hide_titlebar = self.titlebar != TitlebarVisibility::Visible;
         if self.decorations.is_none()
             || self.state.contains(WindowState::FULLSCREEN)
-            || self.hide_titlebar
+            || hide_titlebar
         {
             (Some(width), Some(height))
         } else {
@@ -459,9 +460,10 @@ where
     }
 
     fn add_borders(&self, width: u32, height: u32) -> (u32, u32) {
+        let hide_titlebar = self.titlebar != TitlebarVisibility::Visible;
         if self.decorations.is_none()
             || self.state.contains(WindowState::FULLSCREEN)
-            || self.hide_titlebar
+            || hide_titlebar
         {
             (width, height)
         } else {
@@ -470,9 +472,10 @@ where
     }
 
     fn location(&self) -> (i32, i32) {
+        let hide_titlebar = self.titlebar != TitlebarVisibility::Visible;
         if self.decorations.is_none()
             || self.state.contains(WindowState::FULLSCREEN)
-            || self.hide_titlebar
+            || hide_titlebar
         {
             (0, 0)
         } else {
@@ -559,11 +562,29 @@ where
 }
 
 /// The configuration for the [`AdwaitaFrame`] frame.
+#[derive(Debug, Clone, PartialEq)]
+pub enum TitlebarVisibility {
+    Visible,
+    Hidden,
+    Transparent(u8),
+}
+
+impl From<bool> for TitlebarVisibility {
+    fn from(b: bool) -> Self {
+        if b {
+            TitlebarVisibility::Hidden
+        } else {
+            TitlebarVisibility::Visible
+        }
+    }
+}
+
+/// The configuration for the [`AdwaitaFrame`] frame.
 #[derive(Debug, Clone)]
 pub struct FrameConfig {
     pub theme: ColorTheme,
-    /// Draw decorations but without the titlebar
-    pub hide_titlebar: bool,
+    /// Titlebar visibility.
+    pub titlebar: TitlebarVisibility,
     /// Draw decorations but without the window border
     pub hide_border: bool,
 }
@@ -573,7 +594,7 @@ impl FrameConfig {
     pub fn new(theme: ColorTheme) -> Self {
         Self {
             theme,
-            hide_titlebar: false,
+            titlebar: TitlebarVisibility::Visible,
             hide_border: false,
         }
     }
@@ -599,9 +620,9 @@ impl FrameConfig {
         Self::new(ColorTheme::dark())
     }
 
-    /// Draw decorations but without the titlebar
-    pub fn hide_titlebar(mut self, hide: bool) -> Self {
-        self.hide_titlebar = hide;
+    /// Set the titlebar visibility.
+    pub fn titlebar(mut self, visibility: TitlebarVisibility) -> Self {
+        self.titlebar = visibility;
         self
     }
 
@@ -625,7 +646,7 @@ fn draw_part(
     buttons: &Buttons,
     mouse: Location,
     hide_border: bool,
-    hide_titlebar: bool,
+    titlebar: &TitlebarVisibility,
     shadow: &mut Shadow,
 ) {
     if !state.intersects(WindowState::TILED) {
@@ -657,6 +678,7 @@ fn draw_part(
                 buttons,
                 mouse,
                 hide_border,
+                titlebar,
             );
         }
         PartId::Left => {
@@ -685,7 +707,7 @@ fn draw_part(
             )
         }
         // Unless titlebar is disabled
-        PartId::Top if hide_titlebar => {
+        PartId::Top if *titlebar == TitlebarVisibility::Hidden => {
             let x = rect.x.unsigned_abs() * scale;
             let x = x.saturating_sub(border_size);
 
@@ -719,8 +741,9 @@ fn draw_headerbar(
     buttons: &Buttons,
     mouse: Location,
     hider_border: bool,
+    titlebar: &TitlebarVisibility,
 ) {
-    let _ = draw_headerbar_bg(pixmap, scale, colors, state);
+    let _ = draw_headerbar_bg(pixmap, scale, colors, state, titlebar);
 
     // Horizontal margin.
     let margin_h = get_margin_h_lp(state, hider_border) * 2.0;
@@ -795,7 +818,15 @@ fn draw_headerbar(
 
     // Draw the buttons.
     buttons.draw(
-        margin_h, header_w, scale, colors, mouse, pixmap, resizable, state,
+        margin_h,
+        header_w,
+        scale,
+        colors,
+        mouse,
+        pixmap,
+        resizable,
+        state,
+        titlebar,
     );
 }
 
@@ -805,6 +836,7 @@ fn draw_headerbar_bg(
     scale: f32,
     colors: &ColorMap,
     state: &WindowState,
+    titlebar: &TitlebarVisibility,
 ) -> SkiaResult {
     let w = pixmap.width() as f32;
     let h = pixmap.height() as f32;
@@ -817,9 +849,27 @@ fn draw_headerbar_bg(
 
     let bg = rounded_headerbar_shape(0., 0., w, h, radius)?;
 
+    let alpha = match titlebar {
+        TitlebarVisibility::Transparent(alpha) => *alpha,
+        TitlebarVisibility::Visible => 255,
+        TitlebarVisibility::Hidden => 0,
+    };
+
+    let mut paint = colors.headerbar_paint();
+    paint.anti_alias = true;
+
+    if let tiny_skia::Shader::SolidColor(color) = paint.shader {
+        paint.shader = tiny_skia::Shader::SolidColor(Color::from_rgba8(
+            (color.red() * 255.) as u8,
+            (color.green() * 255.) as u8,
+            (color.blue() * 255.) as u8,
+            alpha,
+        ));
+    }
+
     pixmap.fill_path(
         &bg,
-        &colors.headerbar_paint(),
+        &paint,
         FillRule::Winding,
         Transform::identity(),
         None,
@@ -984,7 +1034,7 @@ mod tests {
             &buttons,
             Location::None,
             layout_config.hide_border,
-            layout_config.hide_titlebar,
+            &TitlebarVisibility::from(layout_config.hide_titlebar),
             &mut shadow,
         );
 
@@ -1120,5 +1170,16 @@ mod tests {
             .encode_png()
             .unwrap();
         png_check("combined-parts-scale-2", &got);
+    }
+
+    #[test]
+    fn combined_parts_transparent_titlebar() {
+        let layout_config = test_layout_config();
+        let mut frame_config = FrameConfig::auto();
+        frame_config.titlebar = TitlebarVisibility::Transparent(127);
+        let got = draw_combined(layout_config)
+            .encode_png()
+            .unwrap();
+        png_check("combined-parts-transparent-titlebar", &got);
     }
 }

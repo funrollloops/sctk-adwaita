@@ -123,6 +123,7 @@ impl Buttons {
         pixmap: &mut PixmapMut,
         resizable: bool,
         state: &WindowState,
+        titlebar: &crate::TitlebarVisibility,
     ) {
         let left_buttons_right_limit =
             self.right_buttons_start_x().unwrap_or(end_x).min(end_x) - BUTTON_SPACING;
@@ -135,7 +136,15 @@ impl Buttons {
                 && (side == Side::Right || button.end_x() < left_buttons_right_limit);
 
             if is_visible {
-                button.draw(scale, colors, mouse_location, pixmap, resizable, state);
+                button.draw(
+                    scale,
+                    colors,
+                    mouse_location,
+                    pixmap,
+                    resizable,
+                    state,
+                    titlebar,
+                );
             }
         }
     }
@@ -244,14 +253,30 @@ impl Button {
         pixmap: &mut PixmapMut,
         resizable: bool,
         state: &WindowState,
+        titlebar: &crate::TitlebarVisibility,
     ) -> SkiaResult {
-        let button_bg = if mouse_location == Location::Button(self.kind)
+        let mut button_bg = if mouse_location == Location::Button(self.kind)
             && (resizable || self.kind != ButtonKind::Maximize)
         {
             colors.button_hover_paint()
         } else {
             colors.button_idle_paint()
         };
+
+        let alpha = match titlebar {
+            crate::TitlebarVisibility::Transparent(alpha) => *alpha,
+            crate::TitlebarVisibility::Visible => 255,
+            crate::TitlebarVisibility::Hidden => 0,
+        };
+
+        if let tiny_skia::Shader::SolidColor(color) = button_bg.shader {
+            button_bg.shader = tiny_skia::Shader::SolidColor(tiny_skia::Color::from_rgba8(
+                (color.red() * 255.) as u8,
+                (color.green() * 255.) as u8,
+                (color.blue() * 255.) as u8,
+                alpha,
+            ));
+        }
 
         // Convert to pixels.
         let x = self.center_x() * scale;
