@@ -100,7 +100,7 @@ fn main() {
         themed_pointer: None,
         set_cursor: false,
         cursor_icon: CursorIcon::Crosshair,
-        hide_titlebar: false,
+        titlebar_state: 0,
         hide_border: false,
     };
 
@@ -139,7 +139,7 @@ struct SimpleWindow {
     set_cursor: bool,
     cursor_icon: CursorIcon,
 
-    hide_titlebar: bool,
+    titlebar_state: u8,
     hide_border: bool,
 }
 
@@ -255,7 +255,7 @@ impl WindowHandler for SimpleWindow {
                     self.compositor_state.clone(),
                     self.subcompositor_state.clone(),
                     qh.clone(),
-                    FrameConfig::auto().titlebar(self.hide_titlebar.into()),
+                    FrameConfig::auto(),
                 )
                 .expect("failed to create client side decorations frame.");
                 frame.set_title(self.title.clone());
@@ -450,49 +450,61 @@ impl PointerHandler for SimpleWindow {
 
                         // Hide/Show titlebar on right click
                         if button == 0x111 {
-                            self.hide_titlebar = !self.hide_titlebar;
+                            self.titlebar_state = (self.titlebar_state + 1) % 3;
 
                             if let Some(frame) = self.window_frame.as_mut() {
                                 // FrameConfig::auto() is not free, this shouldn't be called here
                                 let config = FrameConfig::auto().hide_border(self.hide_border);
 
-                                if self.hide_titlebar {
-                                    frame.set_config(
-                                        config.titlebar(sctk_adwaita::TitlebarVisibility::Hidden),
-                                    );
-                                    self.window.xdg_surface().set_window_geometry(
-                                        0,
-                                        0,
-                                        self.width.get() as i32,
-                                        self.height.get() as i32,
-                                    );
-                                } else {
-                                    let (width, height) = (self.width, self.height);
-
-                                    frame.set_config(
-                                        config.titlebar(sctk_adwaita::TitlebarVisibility::Visible),
-                                    );
-                                    frame.resize(width, height);
-
-                                    let (x, y) = frame.location();
-                                    let outer_size = frame.add_borders(width.get(), height.get());
-                                    self.window.xdg_surface().set_window_geometry(
-                                        x,
-                                        y,
-                                        outer_size.0 as i32,
-                                        outer_size.1 as i32,
-                                    );
-
-                                    // Update new width and height;
-                                    self.width = width;
-                                    self.height = height;
+                                match self.titlebar_state {
+                                    0 => {
+                                        // Visible
+                                        let (width, height) = (self.width, self.height);
+                                        frame.set_config(
+                                            config.titlebar(sctk_adwaita::TitlebarVisibility::Visible),
+                                        );
+                                        frame.resize(width, height);
+                                        let (x, y) = frame.location();
+                                        let outer_size =
+                                            frame.add_borders(width.get(), height.get());
+                                        self.window.xdg_surface().set_window_geometry(
+                                            x,
+                                            y,
+                                            outer_size.0 as i32,
+                                            outer_size.1 as i32,
+                                        );
+                                    }
+                                    1 => {
+                                        // Hidden
+                                        frame.set_config(
+                                            config.titlebar(sctk_adwaita::TitlebarVisibility::Hidden),
+                                        );
+                                        self.window.xdg_surface().set_window_geometry(
+                                            0,
+                                            0,
+                                            self.width.get() as i32,
+                                            self.height.get() as i32,
+                                        );
+                                    }
+                                    2 => {
+                                        // Transparent
+                                        frame.set_config(config.titlebar(
+                                            sctk_adwaita::TitlebarVisibility::Transparent(127),
+                                        ));
+                                        self.window.xdg_surface().set_window_geometry(
+                                            0,
+                                            0,
+                                            self.width.get() as i32,
+                                            self.height.get() as i32,
+                                        );
+                                    }
+                                    _ => unreachable!(),
                                 }
                             }
                         } else if button == 0x112 {
                             if let Some(frame) = self.window_frame.as_mut() {
                                 // FrameConfig::auto() is not free, this shouldn't be called here
-                                let config =
-                                    FrameConfig::auto().titlebar(self.hide_titlebar.into());
+                                let config = FrameConfig::auto();
 
                                 self.hide_border = !self.hide_border;
                                 frame.set_config(config.hide_border(self.hide_border));
